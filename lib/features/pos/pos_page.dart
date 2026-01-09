@@ -7,9 +7,8 @@ import '../dashboard/dashboard_page.dart';
 import 'pos_controller.dart';
 import 'pos_cart_item.dart';
 
-// Warna Utama Aplikasi yang Cerah
-const Color kPrimaryColor = Color(0xFF2563EB); // Biru terang modern
-const Color kBgColor = Color(0xFFF8F9FD); // Background sangat bersih
+const Color kPrimaryColor = Color(0xFF2563EB); 
+const Color kBgColor = Color(0xFFF2F6FF);
 
 class PosPage extends StatelessWidget {
   const PosPage({super.key});
@@ -24,62 +23,39 @@ class PosPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: kBgColor,
       
-      // AppBar Mobile (Clean White)
-      appBar: isMobile
-          ? AppBar(
-              title: const Text(
-                'Kasir',
-                style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w800),
-              ),
-              backgroundColor: Colors.white,
-              elevation: 0,
-              centerTitle: true,
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black87),
-                onPressed: () => Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => const DashboardPage()),
-                ),
-              ),
-            )
-          : null,
+      // === APP BAR (Mobile Only) ===
+      appBar: isMobile ? AppBar(
+        title: const Text('Kasir', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w800)),
+        backgroundColor: Colors.white, elevation: 0, centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black87), 
+          onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardPage()))
+        ),
+      ) : null,
 
-      // Floating Button Cart (Mobile - Bright Gradient)
-      floatingActionButton: isMobile && cart.items.isNotEmpty
-          ? Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(30),
-                boxShadow: [
-                  BoxShadow(color: kPrimaryColor.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))
-                ],
-                gradient: const LinearGradient(colors: [kPrimaryColor, Color(0xFF00C6FF)]),
-              ),
-              child: FloatingActionButton.extended(
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                icon: const Icon(Icons.shopping_bag_outlined, color: Colors.white),
-                label: Text(
-                  '${cart.items.length} Item • Rp ${cart.total}',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                ),
-                onPressed: () {
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.transparent,
-                    builder: (_) => Container(
-                      height: MediaQuery.of(context).size.height * 0.85,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                      ),
-                      child: _CartPanel(cart: cart, isMobile: true),
-                    ),
-                  );
-                },
-              ),
+      // === FLOATING BUTTON KHUSUS KERANJANG (BUKAN INPUT AI) ===
+      // Tombol ini hanya muncul di HP jika ada barang di keranjang
+      floatingActionButton: isMobile && cart.items.isNotEmpty ? Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: [BoxShadow(color: kPrimaryColor.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))],
+          gradient: const LinearGradient(colors: [kPrimaryColor, Color(0xFF00C6FF)]),
+        ),
+        child: FloatingActionButton.extended(
+          backgroundColor: Colors.transparent, elevation: 0,
+          icon: const Icon(Icons.shopping_bag_outlined, color: Colors.white),
+          // Menampilkan Total Item & Harga
+          label: Text('${cart.items.length} Item • Rp ${cart.grandTotal}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          onPressed: () => showModalBottomSheet(
+            context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
+            builder: (_) => Container(
+              height: MediaQuery.of(context).size.height * 0.85,
+              decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+              child: _CartPanel(cart: cart, isMobile: true),
             )
-          : null,
+          ),
+        ),
+      ) : null,
 
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -90,38 +66,30 @@ class PosPage extends StatelessWidget {
             child: Column(
               children: [
                 if (!isMobile) _buildDesktopHeader(context),
-
                 Expanded(
                   child: ValueListenableBuilder(
                     valueListenable: box.listenable(),
                     builder: (_, Box<Product> box, __) {
-                      if (box.isEmpty) {
-                        return _buildEmptyState();
-                      }
-
+                      if (box.isEmpty) return _buildEmptyState();
+                      
                       return LayoutBuilder(
                         builder: (context, constraints) {
+                          // Grid Responsif
                           int crossAxisCount = constraints.maxWidth > 1200 ? 4 : constraints.maxWidth > 800 ? 3 : 2;
                           return GridView.builder(
                             padding: const EdgeInsets.all(24),
                             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: crossAxisCount,
-                              mainAxisSpacing: 24,
-                              crossAxisSpacing: 24,
-                              childAspectRatio: 0.78, 
+                              crossAxisCount: crossAxisCount, mainAxisSpacing: 20, crossAxisSpacing: 20, childAspectRatio: 0.75,
                             ),
                             itemCount: box.length,
                             itemBuilder: (_, i) {
-                              final p = box.getAt(i)!;
+                              final product = box.getAt(i)!;
                               return TweenAnimationBuilder(
                                 duration: Duration(milliseconds: 300 + (i * 50)),
                                 tween: Tween<double>(begin: 0, end: 1),
                                 curve: Curves.easeOutBack,
-                                builder: (context, double val, child) {
-                                  return Transform.scale(scale: val, child: child);
-                                },
-                                // Pass index untuk penentuan warna gradien
-                                child: _ProductItem(product: p, cart: cart, index: i),
+                                builder: (context, double val, child) => Transform.scale(scale: val, child: child),
+                                child: _ProductItem(product: product, cart: cart, index: i),
                               );
                             },
                           );
@@ -133,16 +101,15 @@ class PosPage extends StatelessWidget {
               ],
             ),
           ),
-
-          // ================= SIDEBAR KERANJANG (KANAN) =================
+          
+          // ================= SIDEBAR KERANJANG (KANAN - Desktop Only) =================
           if (!isMobile)
             Container(
-              width: 440,
+              width: 420,
               decoration: BoxDecoration(
                 color: Colors.white,
-                boxShadow: [
-                  BoxShadow(color: Colors.grey.withOpacity(0.05), blurRadius: 30, offset: const Offset(-5, 0)),
-                ],
+                boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.05), blurRadius: 30, offset: const Offset(-5, 0))],
+                border: Border(left: BorderSide(color: Colors.grey.shade100)),
               ),
               child: _CartPanel(cart: cart),
             ),
@@ -151,364 +118,133 @@ class PosPage extends StatelessWidget {
     );
   }
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Image.network('https://cdn-icons-png.flaticon.com/512/7486/7486744.png', width: 150),
-          const SizedBox(height: 24),
-          Text("Belum ada produk", style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold, fontSize: 18)),
-          const SizedBox(height: 8),
-          Text("Tambahkan produk di menu dashboard", style: TextStyle(color: Colors.grey[400])),
-        ],
-      ),
-    );
-  }
+  Widget _buildEmptyState() => Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+    Icon(Icons.production_quantity_limits_rounded, size: 80, color: Colors.grey[300]),
+    const SizedBox(height: 24),
+    Text("Belum ada produk", style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold, fontSize: 18)),
+    const SizedBox(height: 8),
+    Text("Minta Admin untuk stok barang", style: TextStyle(color: Colors.grey[400])),
+  ]));
 
-  Widget _buildDesktopHeader(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-      color: Colors.white,
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardPage())),
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Colors.black87),
-            tooltip: "Kembali",
-          ),
-          const SizedBox(width: 20),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Pilih Produk',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.black87),
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  const Icon(Icons.fiber_manual_record, size: 10, color: Colors.greenAccent),
-                  const SizedBox(width: 6),
-                  Text('Kasir Siap Melayani', style: TextStyle(fontSize: 13, color: Colors.grey[500], fontWeight: FontWeight.w600)),
-                ],
-              ),
-            ],
-          ),
-          const Spacer(),
-          // Search Bar Modern White
-          Container(
-            width: 350,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-            decoration: BoxDecoration(
-              color: kBgColor,
-              borderRadius: BorderRadius.circular(50),
-              border: Border.all(color: Colors.grey.shade100),
-            ),
-            child: const TextField(
-              decoration: InputDecoration(
-                hintText: 'Cari produk...',
-                border: InputBorder.none,
-                icon: Icon(Icons.search_rounded, color: kPrimaryColor),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildDesktopHeader(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24), 
+    decoration: BoxDecoration(color: Colors.white, boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))]),
+    child: Row(children: [
+      IconButton(onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardPage())), icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Colors.black87)),
+      const SizedBox(width: 20),
+      const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Pilih Produk', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.black87)),
+        Text('Kasir Siap Melayani', style: TextStyle(fontSize: 13, color: Colors.grey)),
+      ]),
+      const Spacer(),
+      // Search Bar Sederhana
+      Container(width: 300, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), decoration: BoxDecoration(color: const Color(0xFFF5F6FA), borderRadius: BorderRadius.circular(12)), child: const TextField(decoration: InputDecoration(hintText: 'Cari produk...', border: InputBorder.none, icon: Icon(Icons.search_rounded, color: Colors.grey)))),
+    ]),
+  );
 }
 
-// ================= WIDGET ITEM PRODUK (VIBRANT GRADIENT CARD) =================
+// Widget Item Produk (Tampilan Card)
 class _ProductItem extends StatefulWidget {
-  final Product product;
-  final PosController cart;
-  final int index;
-
+  final Product product; final PosController cart; final int index;
   const _ProductItem({required this.product, required this.cart, required this.index});
-
-  @override
-  State<_ProductItem> createState() => _ProductItemState();
+  @override State<_ProductItem> createState() => _ProductItemState();
 }
 
 class _ProductItemState extends State<_ProductItem> {
   bool isHovered = false;
+  final List<Color> _colors = [const Color(0xFFE3F2FD), const Color(0xFFF3E5F5), const Color(0xFFE8F5E9), const Color(0xFFFFF3E0), const Color(0xFFFCE4EC)];
+  final List<Color> _accents = [Colors.blue, Colors.purple, Colors.green, Colors.orange, Colors.pink];
 
-  // Daftar Gradien Cerah & Modern
-  final List<List<Color>> _gradients = [
-    [const Color(0xFF4FACFE), const Color(0xFF00F2FE)], // Cyan Blue bright
-    [const Color(0xFFFA709A), const Color(0xFFFEE140)], // Pink Yellow bright
-    [const Color(0xFF43E97B), const Color(0xFF38F9D7)], // Green Cyan bright
-    [const Color(0xFF8E2DE2), const Color(0xFF4A00E0)], // Purple bright
-    [const Color(0xFFFF0844), const Color(0xFFFFB199)], // Red Orange bright
-    [const Color(0xFFFBAB7E), const Color(0xFFF7CE68)], // Orange Yellow bright
-  ];
-
-  @override
-  Widget build(BuildContext context) {
+  @override Widget build(BuildContext context) {
     final outOfStock = widget.product.stock <= 0;
-    // Pilih gradien berdasarkan index agar bervariasi
-    final gradientColors = _gradients[widget.index % _gradients.length];
-    final primaryAccent = gradientColors.first;
-
+    final bgColor = _colors[widget.index % _colors.length];
+    final accentColor = _accents[widget.index % _accents.length];
+    
     return MouseRegion(
-      onEnter: (_) => setState(() => isHovered = true),
-      onExit: (_) => setState(() => isHovered = false),
+      onEnter: (_) => setState(() => isHovered = true), onExit: (_) => setState(() => isHovered = false),
       child: GestureDetector(
         onTap: outOfStock ? null : () => widget.cart.addProduct(widget.product),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           transform: isHovered ? (Matrix4.identity()..translate(0.0, -8.0)) : Matrix4.identity(),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: isHovered
-                ? [BoxShadow(color: primaryAccent.withOpacity(0.3), blurRadius: 25, offset: const Offset(0, 12))]
-                : [BoxShadow(color: Colors.grey.withOpacity(0.08), blurRadius: 15, offset: const Offset(0, 8))],
+            color: Colors.white, borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: isHovered ? accentColor.withOpacity(0.5) : Colors.transparent, width: 2),
+            boxShadow: isHovered ? [BoxShadow(color: accentColor.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10))] : [BoxShadow(color: Colors.grey.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 1. Area Gambar dengan Gradien Cerah
-              Expanded(
-                flex: 3,
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                    gradient: LinearGradient(
-                      colors: outOfStock
-                          ? [Colors.grey.shade300, Colors.grey.shade400]
-                          : gradientColors,
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                  child: Stack(
-                    children: [
-                      // Pattern background halus
-                      Positioned(
-                        right: -20, top: -20,
-                        child: Icon(Icons.fastfood, size: 120, color: Colors.white.withOpacity(0.15)),
-                      ),
-                      Center(
-                        child: Icon(
-                          outOfStock ? Icons.production_quantity_limits_rounded : Icons.inventory_2_rounded,
-                          size: 56,
-                          color: Colors.white, // Icon putih agar kontras dengan gradien
-                        ),
-                      ),
-                      // Badge Stok Modern
-                      Positioned(
-                        top: 12, left: 12,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 5)],
-                          ),
-                          child: Text(
-                            'Stok: ${widget.product.stock}',
-                            style: TextStyle(
-                              fontSize: 11, fontWeight: FontWeight.bold,
-                              color: outOfStock ? Colors.red : Colors.black87,
-                            ),
-                          ),
-                        ),
-                      )
-                    ],
-                  ),
-                ),
-              ),
-
-              // 2. Info Produk (Background Putih Bersih)
-              Expanded(
-                flex: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        widget.product.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: Colors.black87, height: 1.2),
-                      ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Rp ${widget.product.price}',
-                            style: TextStyle(
-                              color: primaryAccent, // Warna harga mengikuti warna utama gradien
-                              fontWeight: FontWeight.w900,
-                              fontSize: 16,
-                            ),
-                          ),
-                          // Tombol Tambah Ber-Gradien
-                          Container(
-                            width: 32, height: 32,
-                            decoration: BoxDecoration(
-                              gradient: outOfStock 
-                                ? null 
-                                : LinearGradient(colors: gradientColors),
-                              color: outOfStock ? Colors.grey[300] : null,
-                              shape: BoxShape.circle,
-                              boxShadow: outOfStock ? null : [BoxShadow(color: primaryAccent.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 4))]
-                            ),
-                            child: const Icon(Icons.add, color: Colors.white, size: 20),
-                          )
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Expanded(flex: 3, child: Container(
+              decoration: BoxDecoration(borderRadius: const BorderRadius.vertical(top: Radius.circular(18)), color: outOfStock ? Colors.grey[200] : bgColor),
+              child: Stack(children: [
+                Center(child: Icon(outOfStock ? Icons.block_rounded : Icons.inventory_2_rounded, size: 48, color: outOfStock ? Colors.grey : accentColor)),
+                if (outOfStock) Center(child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.red.withOpacity(0.9), borderRadius: BorderRadius.circular(20)), child: const Text("HABIS", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10)))),
+                if (!outOfStock) Positioned(top: 10, right: 10, child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)), child: Text("Stok: ${widget.product.stock}", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: accentColor)))),
+              ]),
+            )),
+            Expanded(flex: 2, child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Text(widget.product.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF2D3436))),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('Rp ${widget.product.price}', style: TextStyle(color: accentColor, fontWeight: FontWeight.w900, fontSize: 15)),
+                CircleAvatar(radius: 14, backgroundColor: outOfStock ? Colors.grey[300] : accentColor, child: const Icon(Icons.add, color: Colors.white, size: 16))
+              ])
+            ])))
+          ]),
         ),
       ),
     );
   }
 }
 
-// ================= PANEL KERANJANG (BRIGHT & CLEAN) =================
+// ================= PANEL KERANJANG (Cart Panel) =================
 class _CartPanel extends StatelessWidget {
-  final PosController cart;
-  final bool isMobile;
-
+  final PosController cart; final bool isMobile;
   const _CartPanel({required this.cart, this.isMobile = false});
 
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Header Clean
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
-          child: Column(
-            children: [
-              if (isMobile)
-                Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 20), decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(10))),
-              
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Pesanan Aktif', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: kPrimaryColor.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text('#TX-9921', style: TextStyle(color: kPrimaryColor, fontWeight: FontWeight.bold, fontSize: 12)),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+  @override Widget build(BuildContext context) {
+    return ValueListenableBuilder(
+      valueListenable: Hive.box('settings').listenable(),
+      builder: (context, Box box, _) {
+        final taxRate = box.get('tax_rate', defaultValue: 0);
         
-        Divider(height: 1, color: Colors.grey[100]),
-
-        // List Item
-        Expanded(
-          child: cart.items.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Image.network('https://cdn-icons-png.flaticon.com/512/11329/11329060.png', width: 120), // Ilustrasi keranjang cerah
-                      const SizedBox(height: 24),
-                      Text('Keranjang Kosong', style: TextStyle(color: Colors.grey[800], fontWeight: FontWeight.bold, fontSize: 18)),
-                      const SizedBox(height: 8),
-                      Text('Yuk, pilih produk di samping!', style: TextStyle(color: Colors.grey[500])),
-                    ],
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-                  itemCount: cart.items.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 16),
-                  itemBuilder: (_, i) => PosCartItem(item: cart.items[i]),
-                ),
-        ),
-
-        // Bottom Section (BRIGHT & VIBRANT TOTAL)
-        Container(
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: Colors.white, // Kembali ke putih bersih
-            borderRadius: isMobile ? null : const BorderRadius.only(topLeft: Radius.circular(32)),
-            boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.08), blurRadius: 20, offset: const Offset(0, -10))],
+        return Column(children: [
+          Padding(padding: const EdgeInsets.fromLTRB(24, 32, 24, 16), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            const Text('Pesanan', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+            Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: const Color(0xFFE3F2FD), borderRadius: BorderRadius.circular(20)), child: const Text('Aktif', style: TextStyle(color: Color(0xFF2563EB), fontWeight: FontWeight.bold, fontSize: 12))),
+          ])),
+          Divider(height: 1, color: Colors.grey[200]),
+          
+          Expanded(child: cart.items.isEmpty 
+            ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.shopping_cart_outlined, size: 60, color: Colors.grey[300]),
+                const SizedBox(height: 16),
+                Text('Keranjang Kosong', style: TextStyle(color: Colors.grey[400], fontWeight: FontWeight.bold))
+              ])) 
+            : ListView.separated(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24), itemCount: cart.items.length, separatorBuilder: (_, __) => const SizedBox(height: 16), itemBuilder: (_, i) => PosCartItem(item: cart.items[i]))
           ),
-          child: Column(
-            children: [
-              _billRow('Subtotal', cart.total),
-              const SizedBox(height: 12),
-              _billRow('Pajak (10%)', (cart.total * 0.1).toInt(), isTax: true),
-              
-              const Padding(padding: EdgeInsets.symmetric(vertical: 24), child: Divider()),
-              
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Total Tagihan', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.black87)),
-                  // Total Harga Besar & Cerah
-                  Text(
-                    'Rp ${(cart.total * 1.1).toInt()}',
-                    style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: kPrimaryColor),
-                  ),
-                ],
-              ),
+          
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(color: const Color(0xFFF8F9FD), borderRadius: isMobile ? null : const BorderRadius.only(topLeft: Radius.circular(32))),
+            child: Column(children: [
+              _row('Subtotal', cart.subtotal), 
+              const SizedBox(height: 8), 
+              _row('Pajak ($taxRate%)', cart.taxAmount, isColor: true),
+              const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Divider()),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                const Text('Total', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Text('Rp ${cart.grandTotal}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF2563EB)))
+              ]),
               const SizedBox(height: 24),
-              
-              // Tombol Checkout Ber-Gradien Cerah
-              Container(
-                height: 60,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  gradient: const LinearGradient(colors: [kPrimaryColor, Color(0xFF00C6FF)]), // Gradien Biru Cerah
-                  boxShadow: [BoxShadow(color: kPrimaryColor.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 8))],
-                ),
-                child: ElevatedButton(
-                  onPressed: cart.items.isEmpty ? null : () => cart.checkout(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Icon(Icons.payment_rounded, color: Colors.white),
-                      SizedBox(width: 12),
-                      Text('PROSES PEMBAYARAN', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+              SizedBox(width: double.infinity, height: 56, child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), elevation: 5, shadowColor: const Color(0xFF2563EB).withOpacity(0.4)),
+                onPressed: cart.items.isEmpty ? null : () => cart.checkout(context), 
+                child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.payment, color: Colors.white), SizedBox(width: 12), Text('PROSES BAYAR', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white))])
+              ))
+            ]),
+          )
+        ]);
+      }
     );
   }
-
-  Widget _billRow(String label, int value, {bool isTax = false}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 14, fontWeight: FontWeight.w600)),
-        Text(
-          'Rp $value',
-          style: TextStyle(fontWeight: FontWeight.bold, color: isTax ? Colors.orangeAccent : Colors.black87),
-        ),
-      ],
-    );
-  }
+  Widget _row(String l, int v, {bool isColor = false}) => Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(l, style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.w600)), Text('Rp $v', style: TextStyle(fontWeight: FontWeight.bold, color: isColor ? Colors.orange : Colors.black87))]);
 }

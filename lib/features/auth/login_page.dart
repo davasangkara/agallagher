@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
-import 'auth_controller.dart'; 
-import '../dashboard/dashboard_page.dart'; 
+import 'package:hive_flutter/hive_flutter.dart';
+import '../../data/local/shared_pref_service.dart';
+import '../../data/models/user_model.dart';
+import '../dashboard/dashboard_page.dart';
+import '../pos/pos_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -50,39 +53,68 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     super.dispose();
   }
 
+  // LOGIKA LOGIN DATABASE
   Future<void> _handleLogin() async {
     if (usernameCtrl.text.isEmpty || passwordCtrl.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Username dan Password harus diisi'), backgroundColor: Colors.red),
-      );
+      _showSnack('Username dan PIN harus diisi', Colors.red);
       return;
     }
 
     setState(() => _isLoading = true);
+    await Future.delayed(const Duration(milliseconds: 800)); // Efek loading
 
-    await Future.delayed(const Duration(milliseconds: 500));
+    final inputName = usernameCtrl.text.trim();
+    final inputPin = passwordCtrl.text.trim();
 
-    final success = await AuthController.login(
-      usernameCtrl.text,
-      passwordCtrl.text,
-    );
+    // 1. Cek Admin Darurat (Jika database kosong/rusak)
+    if (inputName == 'admin' && inputPin == '123456') {
+      await SharedPrefService.saveLogin('Super Admin', 'admin');
+      if (mounted) _navigate('admin');
+      return;
+    }
 
-    setState(() => _isLoading = false);
+    // 2. Cek Database Hive
+    final userBox = Hive.box<UserModel>('users');
+    
+    try {
+      // Cari user yang cocok (Nama/Email & PIN)
+      final user = userBox.values.firstWhere(
+        (u) => (u.name == inputName || u.email == inputName) && u.pin == inputPin,
+      );
 
-    if (success) {
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const DashboardPage()),
-        );
+      if (user.isActive) {
+        // SUKSES
+        await SharedPrefService.saveLogin(user.name, user.role);
+        if (mounted) _navigate(user.role);
+      } else {
+        // AKUN NONAKTIF
+        if (mounted) {
+          setState(() => _isLoading = false);
+          _showSnack('Akun Anda telah dinonaktifkan Admin.', Colors.orange);
+        }
       }
-    } else {
+    } catch (e) {
+      // GAGAL
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Login gagal! Periksa username/password.'), backgroundColor: Colors.red),
-        );
+        setState(() => _isLoading = false);
+        _showSnack('Username atau PIN salah!', Colors.red);
       }
     }
+  }
+
+  void _navigate(String role) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => role == 'admin' ? const DashboardPage() : const PosPage(),
+      ),
+    );
+  }
+
+  void _showSnack(String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: color, behavior: SnackBarBehavior.floating),
+    );
   }
 
   @override
@@ -94,7 +126,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       backgroundColor: Colors.white,
       body: Row(
         children: [
-          // ================= LEFT SIDE (BRANDING) - DESKTOP ONLY =================
+          // ================= LEFT SIDE (BRANDING) =================
           if (isDesktop)
             Expanded(
               flex: 5,
@@ -112,20 +144,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                       top: -100, right: -100,
                       child: Container(
                         width: 400, height: 400,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white.withOpacity(0.1),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 50, left: 50,
-                      child: Container(
-                        width: 200, height: 200,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white.withOpacity(0.05),
-                        ),
+                        decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withOpacity(0.1)),
                       ),
                     ),
                     Padding(
@@ -138,21 +157,12 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                           const SizedBox(height: 30),
                           const Text(
                             'Kelola Bisnis\nJadi Lebih Mudah.',
-                            style: TextStyle(
-                              fontSize: 42,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              height: 1.2,
-                            ),
+                            style: TextStyle(fontSize: 42, fontWeight: FontWeight.w900, color: Colors.white, height: 1.2),
                           ),
                           const SizedBox(height: 20),
                           Text(
-                            'Sistem POS dan Inventory modern untuk pertumbuhan bisnis Anda. Pantau stok, penjualan, dan laporan dalam satu aplikasi.',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.white.withOpacity(0.8),
-                              height: 1.5,
-                            ),
+                            'Sistem POS dan Inventory modern untuk pertumbuhan bisnis Anda.',
+                            style: TextStyle(fontSize: 16, color: Colors.white.withOpacity(0.8), height: 1.5),
                           ),
                         ],
                       ),
@@ -162,7 +172,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
               ),
             ),
 
-          // ================= RIGHT SIDE (LOGIN FORM) =================
+          // ================= RIGHT SIDE (FORM) =================
           Expanded(
             flex: isDesktop ? 4 : 1,
             child: Container(
@@ -180,16 +190,11 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            // Header Mobile (Jika Desktop, icon ada di kiri)
                             if (!isDesktop) ...[
-                              // === PERBAIKAN DI SINI (Hapus const) ===
                               Center(
                                 child: Container(
                                   padding: const EdgeInsets.all(16),
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFFF5F6FA),
-                                    shape: BoxShape.circle,
-                                  ),
+                                  decoration: const BoxDecoration(color: Color(0xFFF5F6FA), shape: BoxShape.circle),
                                   child: const Icon(Icons.inventory_2_rounded, size: 40, color: Color(0xFF6C63FF)),
                                 ),
                               ),
@@ -202,20 +207,20 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Silakan login akun Anda',
+                              'Silakan login untuk melanjutkan',
                               style: TextStyle(fontSize: 14, color: Colors.grey[500]),
                             ),
                             const SizedBox(height: 40),
 
                             _ModernInput(
                               controller: usernameCtrl,
-                              label: 'Username',
+                              label: 'Username / Email',
                               icon: Icons.person_outline_rounded,
                             ),
                             const SizedBox(height: 20),
                             _ModernInput(
                               controller: passwordCtrl,
-                              label: 'Password',
+                              label: 'PIN / Password',
                               icon: Icons.lock_outline_rounded,
                               isPassword: true,
                               isVisible: _isPasswordVisible,
@@ -224,15 +229,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                               },
                             ),
                             
-                            const SizedBox(height: 12),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                onPressed: () {},
-                                child: const Text('Lupa Password?', style: TextStyle(color: Color(0xFF6C63FF))),
-                              ),
-                            ),
-                            const SizedBox(height: 30),
+                            const SizedBox(height: 40),
 
                             SizedBox(
                               width: double.infinity,
@@ -246,23 +243,16 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                                   shadowColor: const Color(0xFF6C63FF).withOpacity(0.4),
                                 ),
                                 child: _isLoading
-                                    ? const SizedBox(
-                                        width: 24, height: 24,
-                                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                                      )
+                                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                                     : const Text(
                                         'MASUK',
-                                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1),
+                                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1, color: Colors.white),
                                       ),
                               ),
                             ),
                             
-                            if (!isDesktop) ...[
-                              const SizedBox(height: 40),
-                              const Center(
-                                child: Text("Versi 1.0.0 • Nexus POS", style: TextStyle(color: Colors.grey, fontSize: 12)),
-                              ),
-                            ]
+                            const SizedBox(height: 40),
+                            const Center(child: Text("Versi 1.0.0 • Nexus POS", style: TextStyle(color: Colors.grey, fontSize: 12))),
                           ],
                         ),
                       ),
@@ -325,18 +315,16 @@ class _ModernInputState extends State<_ModernInput> {
             child: TextField(
               controller: widget.controller,
               obscureText: widget.isPassword && !widget.isVisible,
+              keyboardType: widget.isPassword ? TextInputType.number : TextInputType.text,
               style: const TextStyle(color: Colors.black87),
               decoration: InputDecoration(
                 icon: Icon(widget.icon, color: _isFocused ? const Color(0xFF6C63FF) : Colors.grey),
                 border: InputBorder.none,
-                hintText: widget.isPassword ? '••••••' : 'Masukkan ${widget.label}',
+                hintText: 'Masukkan data...',
                 hintStyle: TextStyle(color: Colors.grey[400]),
                 suffixIcon: widget.isPassword
                     ? IconButton(
-                        icon: Icon(
-                          widget.isVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
-                          color: Colors.grey,
-                        ),
+                        icon: Icon(widget.isVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded, color: Colors.grey),
                         onPressed: widget.onVisibilityToggle,
                       )
                     : null,

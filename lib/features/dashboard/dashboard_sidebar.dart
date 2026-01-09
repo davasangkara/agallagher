@@ -5,6 +5,9 @@ import '../dashboard/dashboard_page.dart';
 import '../product/product_page.dart';
 import '../pos/pos_page.dart';
 import '../report/report_page.dart';
+// Import halaman yang sudah kita buat
+import '../users/users_page.dart'; 
+import '../settings/settings_page.dart';
 
 class DashboardSidebar extends StatelessWidget {
   final bool isDrawer;
@@ -83,12 +86,20 @@ class DashboardSidebar extends StatelessWidget {
                 child: ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   children: [
+                    // === MENU UTAMA ===
+                    if (!collapsed) 
+                      const Padding(
+                        padding: EdgeInsets.only(left: 12, bottom: 8),
+                        child: Text("MENU UTAMA", style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                      ),
+
                     if (role == 'admin') ...[
                       _NavButton(
                         icon: Icons.grid_view_rounded,
                         label: 'Dashboard',
                         page: const DashboardPage(),
-                        isActive: true,
+                        // Cek halaman aktif secara sederhana (bisa ditingkatkan)
+                        isActive: context.widget is DashboardPage, 
                         collapsed: collapsed,
                       ),
                       _NavButton(
@@ -103,7 +114,15 @@ class DashboardSidebar extends StatelessWidget {
                         page: const ReportPage(),
                         collapsed: collapsed,
                       ),
+                      // FITUR BARU 1: KARYAWAN (FIXED)
+                      _NavButton(
+                        icon: Icons.people_outline_rounded,
+                        label: 'Karyawan',
+                        page: const UsersPage(), // <--- Memanggil Halaman Asli
+                        collapsed: collapsed,
+                      ),
                     ],
+                    
                     if (role == 'kasir')
                       _NavButton(
                         icon: Icons.point_of_sale_rounded,
@@ -111,6 +130,23 @@ class DashboardSidebar extends StatelessWidget {
                         page: const PosPage(),
                         collapsed: collapsed,
                       ),
+
+                    const SizedBox(height: 24),
+                    
+                    // === MENU LAINNYA ===
+                    if (!collapsed) 
+                      const Padding(
+                        padding: EdgeInsets.only(left: 12, bottom: 8),
+                        child: Text("LAINNYA", style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                      ),
+
+                    // FITUR BARU 2: PENGATURAN (FIXED)
+                    _NavButton(
+                      icon: Icons.settings_rounded,
+                      label: 'Pengaturan',
+                      page: const SettingsPage(), // <--- Memanggil Halaman Asli
+                      collapsed: collapsed,
+                    ),
                   ],
                 ),
               ),
@@ -131,7 +167,7 @@ class DashboardSidebar extends StatelessWidget {
                       backgroundColor: Colors.grey,
                       backgroundImage: NetworkImage(
                         "https://i.pravatar.cc/150?img=12",
-                      ), // Dummy Avatar
+                      ), 
                     ),
                     if (!collapsed) ...[
                       const SizedBox(width: 12),
@@ -197,17 +233,17 @@ class _NavButtonState extends State<_NavButton> {
         ),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          margin: const EdgeInsets.only(bottom: 12),
+          margin: const EdgeInsets.only(bottom: 8), 
           padding: EdgeInsets.symmetric(
-            vertical: 16,
+            vertical: 14,
             horizontal: widget.collapsed ? 0 : 20,
           ),
           decoration: BoxDecoration(
             color: widget.isActive
                 ? const Color(0xFF6C63FF)
                 : (hover
-                      ? const Color(0xFF6C63FF).withOpacity(0.05)
-                      : Colors.transparent),
+                    ? const Color(0xFF6C63FF).withOpacity(0.05)
+                    : Colors.transparent),
             borderRadius: BorderRadius.circular(16),
             boxShadow: widget.isActive
                 ? [
@@ -223,6 +259,7 @@ class _NavButtonState extends State<_NavButton> {
               ? Icon(
                   widget.icon,
                   color: widget.isActive ? Colors.white : Colors.grey,
+                  size: 20,
                 )
               : Row(
                   children: [
@@ -231,20 +268,21 @@ class _NavButtonState extends State<_NavButton> {
                       color: widget.isActive
                           ? Colors.white
                           : (hover ? const Color(0xFF6C63FF) : Colors.grey),
-                      size: 22,
+                      size: 20,
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 14),
                     Text(
                       widget.label,
                       style: TextStyle(
                         color: widget.isActive
                             ? Colors.white
                             : (hover
-                                  ? const Color(0xFF6C63FF)
-                                  : Colors.grey[600]),
+                                ? const Color(0xFF6C63FF)
+                                : Colors.grey[600]),
                         fontWeight: widget.isActive
                             ? FontWeight.w600
                             : FontWeight.w500,
+                        fontSize: 14,
                       ),
                     ),
                   ],

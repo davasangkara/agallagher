@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:qr_flutter/qr_flutter.dart'; // Library untuk generate gambar QR
+
 import '../../data/models/product_model.dart';
 import '../../data/models/transaction_model.dart';
-import 'receipt_dialog.dart'; // Pastikan file ini ada
+import 'receipt_dialog.dart'; 
 
 enum PaymentMethod { cash, qris, debit }
 
@@ -18,9 +20,11 @@ class CartItem {
 class PosController extends ChangeNotifier {
   final List<CartItem> _items = [];
 
-  // Data untuk struk terakhir
+  // Data Struk Terakhir (Snapshot)
   List<TransactionItem> lastItems = [];
-  int lastTotal = 0;
+  int lastSubtotal = 0;
+  int lastTax = 0;
+  int lastGrandTotal = 0;
   int lastPaid = 0;
   int lastChange = 0;
 
@@ -29,12 +33,23 @@ class PosController extends ChangeNotifier {
 
   List<CartItem> get items => _items;
 
+  // ================= HITUNG-HITUNGAN =================
+  int get subtotal => _items.fold(0, (sum, item) => sum + item.subtotal);
+
+  int get taxAmount {
+    if (!Hive.isBoxOpen('settings')) return 0;
+    final settings = Hive.box('settings');
+    final int taxRate = settings.get('tax_rate', defaultValue: 0);
+    return (subtotal * (taxRate / 100)).toInt();
+  }
+
+  int get grandTotal => subtotal + taxAmount;
+  int get change => paidAmount - grandTotal;
+
   // ================= CART LOGIC =================
   void addProduct(Product product) {
     if (product.stock <= 0) return;
-
     final index = _items.indexWhere((e) => e.product.key == product.key);
-
     if (index >= 0) {
       if (_items[index].qty < product.stock) {
         _items[index].qty++;
@@ -61,48 +76,32 @@ class PosController extends ChangeNotifier {
     notifyListeners();
   }
 
-  int get total => _items.fold(0, (sum, item) => sum + item.subtotal);
-  int get change => paidAmount - total;
-
-  // ================= CHECKOUT FLOW (DIPERBAIKI) =================
-  
-  // PERBAIKAN: Sekarang menerima BuildContext context
+  // ================= CHECKOUT FLOW =================
   void checkout(BuildContext context) {
     if (_items.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Keranjang masih kosong')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Keranjang kosong')));
       return;
     }
 
-    // 1. Tampilkan Dialog Input Pembayaran
+    // Tampilkan Dialog Pembayaran
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => _PaymentInputDialog(
-        total: total,
+        total: grandTotal, 
         onPay: (nominal, method) {
-          // 2. Set Data Pembayaran
           paidAmount = nominal;
           paymentMethod = method;
           
-          // 3. Proses Transaksi
           _processTransaction();
           
-          // 4. Tutup Dialog Input
           Navigator.pop(ctx); 
-
-          // 5. Tampilkan Struk
-          showDialog(
-            context: context,
-            builder: (_) => ReceiptDialog(cart: this),
-          );
+          showDialog(context: context, builder: (_) => ReceiptDialog(cart: this));
         },
       ),
     );
   }
 
-  // Logika Internal
   void _processTransaction() {
     lastItems = _items.map((e) => TransactionItem(
       productName: e.product.name,
@@ -110,15 +109,16 @@ class PosController extends ChangeNotifier {
       qty: e.qty,
     )).toList();
 
-    lastTotal = total;
+    lastSubtotal = subtotal;
+    lastTax = taxAmount;
+    lastGrandTotal = grandTotal;
     lastPaid = paidAmount;
     lastChange = change;
 
-    // Simpan ke Hive
     Hive.box<TransactionModel>('transactions').add(
       TransactionModel(
         time: DateTime.now(),
-        total: lastTotal,
+        total: lastGrandTotal,
         method: paymentMethod.name,
         paid: lastPaid,
         change: lastChange,
@@ -126,7 +126,6 @@ class PosController extends ChangeNotifier {
       ),
     );
 
-    // Kurangi Stok
     for (final item in _items) {
       item.product.stock -= item.qty;
       item.product.save(); 
@@ -138,26 +137,28 @@ class PosController extends ChangeNotifier {
   }
 }
 
-// ================= WIDGET DIALOG PEMBAYARAN =================
+// ================= DIALOG PEMBAYARAN (QRIS STATIK AMAN) =================
 class _PaymentInputDialog extends StatefulWidget {
   final int total;
   final Function(int, PaymentMethod) onPay;
-
   const _PaymentInputDialog({required this.total, required this.onPay});
-
-  @override
-  State<_PaymentInputDialog> createState() => _PaymentInputDialogState();
+  @override State<_PaymentInputDialog> createState() => _PaymentInputDialogState();
 }
 
 class _PaymentInputDialogState extends State<_PaymentInputDialog> {
   final _nominalCtrl = TextEditingController();
   PaymentMethod _method = PaymentMethod.cash;
   late List<int> _suggestions;
+  String? _qrisData;
 
   @override
   void initState() {
     super.initState();
-    // Suggestion uang pas / uang besar terdekat
+    final settings = Hive.box('settings');
+    // Default QRIS Anda (Otomatis terisi jika settings kosong)
+    const myStaticQris = "00020101021126610015COM.EIDUPAY.WWW011893600824000000099502090000009950303UMI51440014ID.CO.QRIS.WWW0215ID10243301369600303UMI5204481253033605802ID5915MBL-DAFFAXSTORE6010PURWAKARTA61054111162070703A0163044E17";
+    _qrisData = settings.get('qris_data', defaultValue: myStaticQris);
+
     _suggestions = [
       widget.total,
       _roundUp(widget.total, 5000),
@@ -175,19 +176,17 @@ class _PaymentInputDialogState extends State<_PaymentInputDialog> {
   }
 
   void _submit() {
-    int? nominal = int.tryParse(_nominalCtrl.text.replaceAll(RegExp(r'[^0-9]'), ''));
-    
+    int nominal = widget.total;
+    // Validasi Pembayaran Tunai
     if (_method == PaymentMethod.cash) {
-      if (nominal == null || nominal < widget.total) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Uang tunai kurang!'), backgroundColor: Colors.red),
-        );
+      int? input = int.tryParse(_nominalCtrl.text.replaceAll(RegExp(r'[^0-9]'), ''));
+      if (input == null || input < widget.total) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Uang tunai kurang!'), backgroundColor: Colors.redAccent));
         return;
       }
-    } else {
-      nominal = widget.total;
+      nominal = input;
     }
-
+    // Jika QRIS/Debit, dianggap pas
     widget.onPay(nominal, _method);
   }
 
@@ -196,95 +195,145 @@ class _PaymentInputDialogState extends State<_PaymentInputDialog> {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Container(
-        width: 400,
-        padding: const EdgeInsets.all(24),
+        width: 420, padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text('Pembayaran', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
-            Text('Tagihan: Rp ${widget.total}', style: const TextStyle(fontSize: 18, color: Color(0xFF6C63FF), fontWeight: FontWeight.bold)),
-            const SizedBox(height: 24),
-
+            
             // Pilihan Metode
-            Row(
-              children: [
-                _methodBtn('Tunai', PaymentMethod.cash, Icons.money),
-                const SizedBox(width: 8),
-                _methodBtn('QRIS', PaymentMethod.qris, Icons.qr_code),
-                const SizedBox(width: 8),
-                _methodBtn('Debit', PaymentMethod.debit, Icons.credit_card),
-              ],
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12)),
+              child: Row(children: [
+                _methodBtn('Tunai', PaymentMethod.cash, Icons.money), 
+                _methodBtn('QRIS', PaymentMethod.qris, Icons.qr_code), 
+                _methodBtn('Debit', PaymentMethod.debit, Icons.credit_card)
+              ]),
             ),
             
             const SizedBox(height: 24),
-
+            
+            // === LOGIKA TAMPILAN ===
             if (_method == PaymentMethod.cash) ...[
+              // === TAMPILAN TUNAI ===
+              Text('Total Tagihan', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+              Text('Rp ${widget.total}', style: const TextStyle(fontSize: 32, color: Color(0xFF2563EB), fontWeight: FontWeight.w900)),
+              const SizedBox(height: 20),
               TextField(
-                controller: _nominalCtrl,
-                keyboardType: TextInputType.number,
+                controller: _nominalCtrl, 
+                keyboardType: TextInputType.number, 
+                autofocus: true,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 decoration: InputDecoration(
-                  labelText: 'Nominal Diterima',
-                  prefixText: 'Rp ',
+                  labelText: 'Uang Diterima', 
+                  prefixText: 'Rp ', 
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  filled: true,
-                ),
+                  filled: true, fillColor: Colors.white
+                )
               ),
               const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                children: _suggestions.map((amount) {
-                  if (amount < widget.total) return const SizedBox();
-                  return ActionChip(
-                    label: Text('Rp $amount'),
-                    onPressed: () => _nominalCtrl.text = amount.toString(),
-                  );
-                }).toList(),
-              ),
-            ],
+              Wrap(spacing: 8, children: _suggestions.map((amt) { 
+                if(amt < widget.total) return const SizedBox(); 
+                return ActionChip(
+                  label: Text('Rp $amt'), 
+                  onPressed: () => _nominalCtrl.text = amt.toString(),
+                  backgroundColor: Colors.blue[50],
+                  labelStyle: const TextStyle(color: Color(0xFF2563EB), fontWeight: FontWeight.bold),
+                ); 
+              }).toList()),
 
-            const SizedBox(height: 32),
+            ] else if (_method == PaymentMethod.qris) ...[
+              // === TAMPILAN QRIS STATIK ===
+              if (_qrisData == null || _qrisData!.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(color: Colors.orange[50], borderRadius: BorderRadius.circular(12)),
+                  child: const Column(children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                    SizedBox(height: 8),
+                    Text("QRIS belum diatur!", style: TextStyle(fontWeight: FontWeight.bold)),
+                    Text("Cek Pengaturan.", style: TextStyle(fontSize: 12)),
+                  ]),
+                )
+              else
+                Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade300), boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10)]),
+                      child: Column(
+                        children: [
+                          // Generate QR dari String Asli (Agar Tajam)
+                          QrImageView(
+                            data: _qrisData!, 
+                            version: QrVersions.auto,
+                            size: 220.0,
+                            backgroundColor: Colors.white,
+                          ),
+                          const SizedBox(height: 8),
+                          const Text("MBL-DAFFAXSTORE", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+                          const Text("NMID: ID1024330136960", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    // KOTAK INSTRUKSI NOMINAL
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(color: Colors.orange[50], borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.shade200)),
+                      child: Column(
+                        children: [
+                          const Text("Minta Pelanggan Scan & Ketik Nominal:", style: TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 4),
+                          Text("Rp ${widget.total}", style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.black87)),
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+            ] else ...[
+              // === TAMPILAN DEBIT ===
+              const Icon(Icons.credit_card, size: 80, color: Colors.grey),
+              const SizedBox(height: 16),
+              const Text("Gesek kartu di mesin EDC", style: TextStyle(color: Colors.grey)),
+              const SizedBox(height: 8),
+              Text("Rp ${widget.total}", style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.black87)),
+            ],
             
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6C63FF),
-                minimumSize: const Size(double.infinity, 50),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
-              ),
-              onPressed: _submit,
-              child: const Text('BAYAR SEKARANG', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity, 
+              height: 52, 
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 4), 
+                onPressed: _submit, 
+                child: Text(
+                  _method == PaymentMethod.cash ? 'BAYAR SEKARANG' : 'SUDAH DIBAYAR (LUNAS)', 
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16)
+                )
+              )
+            )
           ],
         ),
       ),
     );
   }
-
-  Widget _methodBtn(String label, PaymentMethod val, IconData icon) {
-    final selected = _method == val;
+  
+  Widget _methodBtn(String l, PaymentMethod v, IconData i) {
+    bool sel = _method == v;
     return Expanded(
-      child: InkWell(
-        onTap: () => setState(() {
-          _method = val;
-          if (val != PaymentMethod.cash) {
-            _nominalCtrl.text = widget.total.toString();
-          } else {
-            _nominalCtrl.clear();
-          }
-        }),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: selected ? const Color(0xFF6C63FF) : Colors.transparent,
-            border: Border.all(color: selected ? const Color(0xFF6C63FF) : Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            children: [
-              Icon(icon, color: selected ? Colors.white : Colors.grey),
-              Text(label, style: TextStyle(color: selected ? Colors.white : Colors.grey, fontSize: 12)),
-            ],
-          ),
+      child: GestureDetector(
+        onTap: () => setState(() { _method = v; if(v != PaymentMethod.cash) _nominalCtrl.text = widget.total.toString(); else _nominalCtrl.clear(); }),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200), padding: const EdgeInsets.symmetric(vertical: 10), 
+          decoration: BoxDecoration(color: sel ? Colors.white : Colors.transparent, borderRadius: BorderRadius.circular(10), boxShadow: sel ? [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4)] : []),
+          child: Column(children: [
+            Icon(i, color: sel ? const Color(0xFF2563EB) : Colors.grey, size: 20), 
+            const SizedBox(height: 4), 
+            Text(l, style: TextStyle(color: sel ? const Color(0xFF2563EB) : Colors.grey, fontWeight: FontWeight.bold, fontSize: 11))
+          ]),
         ),
       ),
     );

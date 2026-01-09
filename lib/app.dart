@@ -12,7 +12,11 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Inventory POS',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(useMaterial3: true),
+      theme: ThemeData(
+        useMaterial3: true,
+        fontFamily: 'Poppins', // Opsional jika punya font
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF6C63FF)),
+      ),
       home: const _RootPage(),
     );
   }
@@ -27,22 +31,23 @@ class _RootPage extends StatelessWidget {
     return FutureBuilder<bool>(
       future: SharedPrefService.isLoggedIn(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
+        // Loading State
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        // ❌ BELUM LOGIN
+        // ❌ BELUM LOGIN -> Login Page
         if (snapshot.data == false) {
-          return LoginPage();
+          return const LoginPage();
         }
 
-        // ✅ SUDAH LOGIN → CEK ROLE
+        // ✅ SUDAH LOGIN -> Cek Role untuk Redirect
         return FutureBuilder<String>(
           future: SharedPrefService.getRole(),
           builder: (context, roleSnap) {
-            if (!roleSnap.hasData) {
+            if (roleSnap.connectionState == ConnectionState.waiting) {
               return const Scaffold(
                 body: Center(child: CircularProgressIndicator()),
               );
@@ -58,8 +63,8 @@ class _RootPage extends StatelessWidget {
               return const PosPage();
             }
 
-            // fallback
-            return LoginPage();
+            // Fallback
+            return const LoginPage();
           },
         );
       },
