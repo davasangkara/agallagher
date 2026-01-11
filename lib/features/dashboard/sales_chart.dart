@@ -5,17 +5,13 @@ class SalesChart extends StatelessWidget {
   final List<FlSpot> spots;
   final bool isMobile; // Tambahkan parameter ini untuk penyesuaian font size
 
-  const SalesChart({
-    super.key, 
-    required this.spots,
-    this.isMobile = false,
-  });
+  const SalesChart({super.key, required this.spots, this.isMobile = false});
 
   @override
   Widget build(BuildContext context) {
     // Warna tema grafik
-    const Color chartColor = Color(0xFF6C63FF); 
-    
+    const Color chartColor = Color(0xFF6C63FF);
+
     // Tentukan Gradient Area di bawah garis
     final gradientColors = [
       chartColor.withOpacity(0.3),
@@ -38,10 +34,10 @@ class SalesChart extends StatelessWidget {
               );
             },
           ),
-          
+
           // Sembunyikan Border Kotak Luar
           borderData: FlBorderData(show: false),
-          
+
           // Judul / Label Sumbu
           titlesData: FlTitlesData(
             show: true,
@@ -55,7 +51,15 @@ class SalesChart extends StatelessWidget {
                 getTitlesWidget: (value, meta) {
                   // Contoh label hari (Sen, Sel, Rab...)
                   // Anda bisa sesuaikan ini dengan data real nanti
-                  const days = ['Min','Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+                  const days = [
+                    'Min',
+                    'Sen',
+                    'Sel',
+                    'Rab',
+                    'Kam',
+                    'Jum',
+                    'Sab',
+                  ];
                   final index = value.toInt();
                   if (index >= 0 && index < days.length) {
                     return Padding(
@@ -74,14 +78,15 @@ class SalesChart extends StatelessWidget {
                 },
               ),
             ),
-            leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)), // Hide Y Axis for cleaner look
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(showTitles: false),
+            ), // Hide Y Axis for cleaner look
           ),
 
           // Interaksi Sentuh / Hover
           lineTouchData: LineTouchData(
             handleBuiltInTouches: true,
             touchTooltipData: LineTouchTooltipData(
-              // Versi lama pakai tooltipBgColor, versi baru mungkin getTooltipColor
               getTooltipColor: (_) => Colors.blueGrey.withOpacity(0.9),
               tooltipRoundedRadius: 8,
               tooltipPadding: const EdgeInsets.all(8),
@@ -90,7 +95,10 @@ class SalesChart extends StatelessWidget {
                 return touchedSpots.map((spot) {
                   return LineTooltipItem(
                     '${spot.y.toInt()} Transaksi',
-                    const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   );
                 }).toList();
               },
@@ -100,7 +108,9 @@ class SalesChart extends StatelessWidget {
           // Data Grafik
           lineBarsData: [
             LineChartBarData(
-              spots: spots.isEmpty ? [const FlSpot(0, 0)] : spots, // Prevent crash if empty
+              spots: spots.isEmpty
+                  ? [const FlSpot(0, 0)]
+                  : spots, // Prevent crash if empty
               isCurved: true,
               color: chartColor,
               barWidth: 4,
@@ -116,7 +126,7 @@ class SalesChart extends StatelessWidget {
               ),
             ),
           ],
-          
+
           // Rentang Data (Opsional, agar grafik tidak mentok atas/bawah)
           minY: 0,
         ),
