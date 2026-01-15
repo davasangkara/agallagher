@@ -1,10 +1,7 @@
-// lib/core/services/product_ai_service.dart
-
 class ProductAiService {
-  // Database Pintar (Nama Produk -> {Kategori, Harga Pasar})
-  // Anda bisa tambahkan ribuan produk di sini nanti
+
   static final Map<String, Map<String, dynamic>> _dictionary = {
-    // === MINUMAN ===
+
     'Coca Cola 390ml': {'category': 'Minuman', 'price': 6000},
     'Coca Cola 1.5L': {'category': 'Minuman', 'price': 18000},
     'Sprite 390ml': {'category': 'Minuman', 'price': 6000},
@@ -14,8 +11,7 @@ class ProductAiService {
     'Teh Pucuk Harum': {'category': 'Minuman', 'price': 4000},
     'Good Day Cappuccino': {'category': 'Minuman', 'price': 7000},
     'Kopi Kapal Api (Renteng)': {'category': 'Minuman', 'price': 15000},
-    
-    // === MAKANAN & SNACK ===
+  
     'Indomie Goreng': {'category': 'Makanan', 'price': 3500},
     'Indomie Soto': {'category': 'Makanan', 'price': 3500},
     'Sedaap Goreng': {'category': 'Makanan', 'price': 3500},
@@ -28,21 +24,18 @@ class ProductAiService {
     'Gula Pasir 1kg': {'category': 'Sembako', 'price': 14000},
     'Telur Ayam (1kg)': {'category': 'Sembako', 'price': 28000},
 
-    // === ROKOK ===
     'Sampoerna Mild 16': {'category': 'Rokok', 'price': 32000},
     'Gudang Garam Filter': {'category': 'Rokok', 'price': 25000},
     'Djarum Super 12': {'category': 'Rokok', 'price': 24000},
     'Marlboro Merah': {'category': 'Rokok', 'price': 42000},
     'Surya 16': {'category': 'Rokok', 'price': 30000},
 
-    // === KEPERLUAN RUMAH ===
     'Lifebuoy Sabun Cair': {'category': 'Perlengkapan', 'price': 25000},
     'Pepsodent 190g': {'category': 'Perlengkapan', 'price': 18000},
     'Sunlight 755ml': {'category': 'Perlengkapan', 'price': 15000},
     'Rinso Bubuk 800g': {'category': 'Perlengkapan', 'price': 22000},
   };
 
-  // Fungsi untuk mencari saran produk
   static List<String> getSuggestions(String query) {
     if (query.isEmpty) return [];
     return _dictionary.keys
@@ -50,7 +43,6 @@ class ProductAiService {
         .toList();
   }
 
-  // Fungsi untuk mengambil detail produk
   static Map<String, dynamic>? getProductDetails(String productName) {
     return _dictionary[productName];
   }
