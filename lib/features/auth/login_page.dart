@@ -497,7 +497,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                                             return Transform.scale(
                                               scale: _pulseAnim.value,
                                               child: const Text(
-                                                '👋',
+                                                '!!',
                                                 style: TextStyle(fontSize: 32),
                                               ),
                                             );

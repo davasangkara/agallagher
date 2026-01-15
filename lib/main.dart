@@ -16,36 +16,25 @@ import 'data/models/user_model.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // 1. Init Format Tanggal (Penting buat Rupiah & Laporan)
-  await initializeDateFormatting('id_ID', null);
 
-  // 2. Init Database (Hive)
-  // Di Web: Ini akan pakai IndexedDB browser.
-  // Di HP: Ini akan pakai File System.
+  await initializeDateFormatting('id_ID', null);
   await Hive.initFlutter();
 
-  // 3. Register Adapter (Struktur Data)
   if (!Hive.isAdapterRegistered(0)) Hive.registerAdapter(ProductAdapter());
   if (!Hive.isAdapterRegistered(1)) Hive.registerAdapter(AuditLogAdapter());
-  if (!Hive.isAdapterRegistered(3)) Hive.registerAdapter(TransactionModelAdapter());
-  if (!Hive.isAdapterRegistered(4)) Hive.registerAdapter(TransactionItemAdapter());
+  if (!Hive.isAdapterRegistered(3))
+    Hive.registerAdapter(TransactionModelAdapter());
+  if (!Hive.isAdapterRegistered(4))
+    Hive.registerAdapter(TransactionItemAdapter());
   if (!Hive.isAdapterRegistered(5)) Hive.registerAdapter(UserModelAdapter());
 
-  // 4. Buka Kotak Penyimpanan
-  // JANGAN PERNAH PAKE .clear() DISINI!
   await Hive.openBox<Product>('products');
   await Hive.openBox<AuditLog>('audit_logs');
   await Hive.openBox<TransactionModel>('transactions');
   await Hive.openBox('settings');
-  
+
   var userBox = await Hive.openBox<UserModel>('users');
 
-  // ============================================================
-  // 🔥 LOGIKA DATA AMAN (ANTI-RESET) 🔥
-  // ============================================================
-  
-  // Cek isi database lewat Terminal
   print("📊 STATUS DATABASE: ${userBox.length} User tersimpan.");
 
   if (userBox.isEmpty) {
@@ -61,7 +50,6 @@ Future<void> main() async {
     );
     print("✅ User Default Dibuat: dava / 456");
   } else {
-    // Kalau sudah ada data, biarkan saja.
     print("✅ Database Aman. Data lama TIDAK dihapus.");
   }
   // ============================================================
